@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>scriptsig-decoder :: Fun With Freedom Tech</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
+
+:root{
+--bg:#050505;
+--bg-panel:#0c0c0c;
+--red:#c81e2c;
+--red-dim:#5c0b12;
+--white:#e9e9e6;
+--grey:#8a8a86;
+--grey-dim:#3a3a38;
+}
+
+*{box-sizing:border-box;}
+
+body{
+background:var(--bg);
+color:var(--white);
+font-family:'IBM Plex Mono', 'Courier New', monospace;
+margin:0;
+padding:0;
+min-height:100vh;
+line-height:1.5;
+}
+
+.scanlines{
+pointer-events:none;
+position:fixed;
+inset:0;
+background:repeating-linear-gradient(
+to bottom,
+rgba(255,255,255,0.02) 0px,
+rgba(255,255,255,0.02) 1px,
+transparent 1px,
+transparent 3px
+);
+z-index:50;
+}
+
+.wrap{
+max-width:900px;
+margin:0 auto;
+padding:40px 24px 80px;
+}
+
+header{
+border-bottom:1px solid var(--grey-dim);
+padding-bottom:20px;
+margin-bottom:28px;
+}
+
+.prompt-line{
+color:var(--grey);
+font-size:13px;
+letter-spacing:0.5px;
+}
+.prompt-line .caret{color:var(--red);}
+
+h1{
+font-size:22px;
+font-weight:700;
+margin:10px 0 6px;
+color:var(--white);
+letter-spacing:0.5px;
+}
+h1 .dot{color:var(--red);}
+
+.sub{
+color:var(--grey);
+font-size:13px;
+max-width:640px;
+}
+
+label{
+display:block;
+font-size:12px;
+text-transform:uppercase;
+letter-spacing:1px;
+color:var(--red);
+margin-bottom:8px;
+}
+
+textarea{
+width:100%;
+background:var(--bg-panel);
+border:1px solid var(--grey-dim);
+color:var(--white);
+font-family:inherit;
+font-size:13px;
+padding:14px;
+resize:vertical;
+min-height:96px;
+border-radius:2px;
+}
+textarea:focus{
+outline:none;
+border-color:var(--red);
+}
+
+.controls{
+display:flex;
+gap:12px;
+margin-top:14px;
+flex-wrap:wrap;
+align-items:center;
+}
+
+button{
+background:var(--red);
+color:#0a0a0a;
+border:none;
+font-family:inherit;
+font-weight:700;
+font-size:13px;
+letter-spacing:0.5px;
+text-transform:uppercase;
+padding:11px 20px;
+cursor:pointer;
+border-radius:2px;
+transition:background 0.15s ease, transform 0.1s ease;
+}
+button:hover{ background:#e2394a; }
+button:active{ transform:translateY(1px); }
+
+button.ghost{
+background:transparent;
+color:var(--grey);
+border:1px solid var(--grey-dim);
+font-weight:500;
+}
+button.ghost:hover{
+color:var(--white);
+border-color:var(--grey);
+}
+
+.error{
+color:var(--red);
+font-size:13px;
+margin-top:10px;
+display:none;
+}
+
+.section-title{
+color:var(--red);
+font-size:12px;
+text-transform:uppercase;
+letter-spacing:1.5px;
+margin:36px 0 10px;
+display:flex;
+align-items:center;
+gap:10px;
+}
+.section-title::after{
+content:'';
+flex:1;
+height:1px;
+background:var(--grey-dim);
+}
+
+.message-box{
+background:var(--bg-panel);
+border:1px solid var(--red-dim);
+padding:20px;
+border-radius:2px;
+font-size:16px;
+color:var(--white);
+word-break:break-word;
+min-height:24px;
+}
+.message-box.empty{
+color:var(--grey);
+font-style:italic;
+font-size:13px;
+}
+.message-box .cursor{
+display:inline-block;
+width:8px;
+height:16px;
+background:var(--red);
+vertical-align:middle;
+margin-left:2px;
+animation:blink 1s step-end infinite;
+}
+@keyframes blink{ 50%{opacity:0;} }
+
+table{
+width:100%;
+border-collapse:collapse;
+font-size:12.5px;
+margin-top:4px;
+}
+th{
+text-align:left;
+color:var(--grey);
+font-weight:500;
+text-transform:uppercase;
+letter-spacing:0.5px;
+font-size:11px;
+padding:8px 10px;
+border-bottom:1px solid var(--grey-dim);
+}
+td{
+padding:9px 10px;
+border-bottom:1px solid #1a1a19;
+vertical-align:top;
+}
+tr:hover td{ background:rgba(200,30,44,0.05); }
+
+.idx{ color:var(--grey-dim); width:34px; }
+.op-tag{
+display:inline-block;
+padding:1px 6px;
+border-radius:2px;
+font-size:11px;
+font-weight:600;
+}
+.op-tag.push{ background:rgba(200,30,44,0.15); color:var(--red); }
+.op-tag.op{ background:rgba(255,255,255,0.06); color:var(--grey); }
+
+.hexdata{
+color:var(--grey);
+word-break:break-all;
+max-width:260px;
+display:inline-block;
+}
+.ascii{ color:var(--white); }
+.ascii .dim{ color:var(--grey-dim); }
+
+.presets{
+margin-top:18px;
+font-size:12px;
+color:var(--grey);
+}
+.presets button{
+background:none;
+border:none;
+color:var(--red);
+text-decoration:underline;
+text-transform:none;
+font-weight:500;
+padding:0;
+font-size:12px;
+cursor:pointer;
+}
+
+footer{
+margin-top:60px;
+padding-top:20px;
+border-top:1px solid var(--grey-dim);
+color:var(--grey-dim);
+font-size:11px;
+letter-spacing:0.5px;
+}
+</style>
+</head>
+<body>
+<div class="scanlines"></div>
+<div class="wrap">
+
+<header>
+<div class="prompt-line"><span class="caret">$</span> Fun-With-Freedom-Tech --Decoder</div>
+<div>
+    <img src="https://raw.githubusercontent.com/Marc26z/bitcoiners/b0e5098a537f1624247dc8260fd68b086f1a8b07/assets/jan3(1).jpg" alt="newspaper">
+</div>
+<h1>scriptsig<span class="dot">.</span>decode()</h1>
+<div class="sub">Paste a  <a href=""></a>_ transaction's scriptSig hex and this will disassemble the Bitcoin script, isolate every pushed data segment, and reconstruct any embedded ASCII text — the same technique used to read the message Satoshi buried in Bitcoin's first block.</div>
+</header>
+
+<div>
+<label for="hexInput">scriptsig_hex</label>
+<textarea id="hexInput" spellcheck="false"></textarea>
+<div class="controls">
+<button id="decodeBtn">Decode</button>
+<button id="clearBtn" class="ghost">Clear</button>
+</div>
+<div class="presets">
+preset: <button id="genesisPreset">load genesis block (height 0) coinbase scriptSig</button>
+</div>
+<div class="error" id="errorBox"></div>
+</div>
+
+<div class="section-title">decoded message</div>
+<div class="message-box empty" id="messageBox">Run a decode to extract readable text from the script's push data.</div>
+
+<div class="section-title">script disassembly</div>
+<table id="disasmTable">
+<thead>
+<th>ascii</th>
+</tr>
+</thead>
+<tbody id="disasmBody"></tbody>
+</table>
+
+<footer>
+fun-with-freedom-tech / scriptsig-decoder v1 — parses standard push opcodes (OP_0, direct push 0x01–0x4b, OP_PUSHDATA1/2/4) plus common non-push opcodes. runs entirely client-side; nothing is sent anywhere. Vibed with Claude Sonnet 5.
+</footer>
+
+</div>
+
+<script>
+const GENESIS_SCRIPTSIG = "04ffff001d0104455468652054696d65732030332f4a616e2f32303039204368616e63656c6c6f72206f6e206272696e6b206f66207365636f6e64206261696c6f757420666f722062616e6b73";
+
+const OPCODE_NAMES = {
+0x00: "OP_0",
+0x4c: "OP_PUSHDATA1",
+0x4d: "OP_PUSHDATA2",
+0x4e: "OP_PUSHDATA4",
+0x4f: "OP_1NEGATE",
+0x51: "OP_1", 0x52: "OP_2", 0x53: "OP_3", 0x54: "OP_4",
+0x55: "OP_5", 0x56: "OP_6", 0x57: "OP_7", 0x58: "OP_8",
+0x59: "OP_9", 0x5a: "OP_10", 0x5b: "OP_11", 0x5c: "OP_12",
+0x5d: "OP_13", 0x5e: "OP_14", 0x5f: "OP_15", 0x60: "OP_16",
+0x61: "OP_NOP", 0x69: "OP_VERIFY", 0x6a: "OP_RETURN",
+0x76: "OP_DUP", 0x87: "OP_EQUAL", 0x88: "OP_EQUALVERIFY",
+0xa9: "OP_HASH160", 0xaa: "OP_HASH256", 0xac: "OP_CHECKSIG",
+0xad: "OP_CHECKSIGVERIFY", 0xae: "OP_CHECKMULTISIG",
+0xaf: "OP_CHECKMULTISIGVERIFY", 0xa6: "OP_RIPEMD160",
+0xa7: "OP_SHA1", 0xa8: "OP_SHA256"
+};
+
+function hexToBytes(hex){
+const clean = hex.replace(/\s+/g,'').replace(/^0x/i,'');
+if(clean.length === 0) return [];
+if(clean.length % 2 !== 0) throw new Error("Hex string has an odd number of characters.");
+if(!/^[0-9a-fA-F]*$/.test(clean)) throw new Error("Input contains non-hex characters.");
+const bytes = [];
+for(let i=0;i<clean.length;i+=2){
+bytes.push(parseInt(clean.substr(i,2),16));
+}
+return bytes;
+}
+
+function bytesToHex(bytes){
+return bytes.map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+function bytesToAsciiSpans(bytes){
+// returns HTML with printable chars shown, non-printable dimmed as dots
+return bytes.map(b=>{
+if(b >= 0x20 && b <= 0x7e){
+const ch = String.fromCharCode(b);
+const esc = ch.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+return esc;
+}
+return '<span class="dim">·</span>';
+}).join('');
+}
+
+function extractPrintable(bytes){
+return bytes
+.map(b => (b>=0x20 && b<=0x7e) ? String.fromCharCode(b) : '')
+.join('');
+}
+
+function disassemble(bytes){
+const items = [];
+let i = 0;
+while(i < bytes.length){
+const opcode = bytes[i];
+const start = i;
+i++;
+
+if(opcode >= 0x01 && opcode <= 0x4b){
+const len = opcode;
+const data = bytes.slice(i, i+len);
+i += len;
+items.push({type:'push', label:`PUSH(${len})`, data});
+} else if(opcode === 0x4c){
+const len = bytes[i]; i++;
+const data = bytes.slice(i, i+len);
+i += len;
+items.push({type:'push', label:`OP_PUSHDATA1(${len})`, data});
+} else if(opcode === 0x4d){
+const len = bytes[i] | (bytes[i+1] << 8); i += 2;
+const data = bytes.slice(i, i+len);
+i += len;
+items.push({type:'push', label:`OP_PUSHDATA2(${len})`, data});
+} else if(opcode === 0x4e){
+const len = bytes[i] | (bytes[i+1]<<8) | (bytes[i+2]<<16) | (bytes[i+3]<<24); i += 4;
+const data = bytes.slice(i, i+len);
+i += len;
+items.push({type:'push', label:`OP_PUSHDATA4(${len})`, data});
+} else {
+const name = OPCODE_NAMES[opcode] || `OP_UNKNOWN(0x${opcode.toString(16).padStart(2,'0')})`;
+items.push({type:'op', label:name, data:[opcode]});
+}
+
+if(i <= start){ break; } // safety against infinite loop
+}
+return items;
+}
+
+function render(items){
+const body = document.getElementById('disasmBody');
+body.innerHTML = '';
+let messageParts = [];
+
+items.forEach((item, idx) => {
+const tr = document.createElement('tr');
+
+const tdIdx = document.createElement('td');
+tdIdx.className = 'idx';
+tdIdx.textContent = idx;
+
+const tdOp = document.createElement('td');
+const tag = document.createElement('span');
+tag.className = 'op-tag ' + (item.type === 'push' ? 'push' : 'op');
+tag.textContent = item.label;
+tdOp.appendChild(tag);
+
+const tdHex = document.createElement('td');
+const hexSpan = document.createElement('span');
+hexSpan.className = 'hexdata';
+hexSpan.textContent = item.data.length ? bytesToHex(item.data) : '—';
+tdHex.appendChild(hexSpan);
+
+const tdAscii = document.createElement('td');
+tdAscii.className = 'ascii';
+tdAscii.innerHTML = item.data.length ? bytesToAsciiSpans(item.data) : '—';
+
+tr.appendChild(tdIdx);
+tr.appendChild(tdOp);
+tr.appendChild(tdHex);
+tr.appendChild(tdAscii);
+body.appendChild(tr);
+
+if(item.type === 'push'){
+const printable = extractPrintable(item.data);
+// only treat as "message" text if it's mostly printable (avoid dumping hash-looking pushes)
+const printableRatio = item.data.length ? printable.length / item.data.length : 0;
+if(printableRatio > 0.8 && printable.trim().length > 3){
+messageParts.push(printable);
+}
+}
+});
+
+const msgBox = document.getElementById('messageBox');
+const message = messageParts.join(' ').trim();
+if(message){
+msgBox.className = 'message-box';
+msgBox.innerHTML = message.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '<span class="cursor"></span>';
+} else {
+msgBox.className = 'message-box empty';
+msgBox.textContent = 'No printable ASCII text was found in this script\'s push data.';
+}
+}
+
+function showError(msg){
+const box = document.getElementById('errorBox');
+if(msg){
+box.textContent = '! ' + msg;
+box.style.display = 'block';
+} else {
+box.style.display = 'none';
+}
+}
+
+function decode(){
+const raw = document.getElementById('hexInput').value;
+try{
+showError(null);
+const bytes = hexToBytes(raw);
+if(bytes.length === 0){
+showError('Enter a scriptSig hex string first.');
+document.getElementById('disasmBody').innerHTML = '';
+const msgBox = document.getElementById('messageBox');
+msgBox.className = 'message-box empty';
+msgBox.textContent = 'Run a decode to extract readable text from the script\'s push data.';
+return;
+}
+const items = disassemble(bytes);
+render(items);
+} catch(e){
+showError(e.message);
+}
+}
+
+document.getElementById('decodeBtn').addEventListener('click', decode);
+document.getElementById('clearBtn').addEventListener('click', () => {
+document.getElementById('hexInput').value = '';
+showError(null);
+document.getElementById('disasmBody').innerHTML = '';
+const msgBox = document.getElementById('messageBox');
+msgBox.className = 'message-box empty';
+msgBox.textContent = 'Run a decode to extract readable text from the script\'s push data.';
+});
+document.getElementById('genesisPreset').addEventListener('click', () => {
+document.getElementById('hexInput').value = GENESIS_SCRIPTSIG;
+decode();
+});
+
+// load genesis by default on first paint
+document.getElementById('hexInput').value = GENESIS_SCRIPTSIG;
+decode();
+</script>
+</body>
+</html>
